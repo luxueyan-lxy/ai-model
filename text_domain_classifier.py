@@ -33,9 +33,25 @@ class TextDomainClassifier:
             domains: 预定义的领域列表
         """
         self.domains = domains or [
-            '科技', '生活', '教育', '职场', '旅游', 
-            '健康', '财经', '娱乐', '体育', '政治', 
-            '美食', '艺术', '汽车', '房产', '游戏'
+             # 科技类（扩展）
+            '人工智能', '大数据', '云计算', '物联网', '区块链', '5G通信',
+            '半导体', '机器人', '虚拟现实', '增强现实', '量子计算',
+            
+            # 经济商业类
+            '宏观经济', '微观经济', '金融市场', '股票投资', '房地产',
+            '创业投资', '企业管理', '市场营销', '供应链', '国际贸易',
+            
+            # 社会文化类
+            '社会热点', '文化传承', '教育政策', '医疗卫生', '法律司法',
+            '城市规划', '环境保护', '乡村振兴', '社会治理', '国际关系',
+            
+            # 生活服务类
+            '健康养生', '健身运动', '旅游出行', '美食餐饮', '时尚潮流',
+            '家居生活', '亲子教育', '心理健康', '情感关系', '职业发展',
+            
+            # 娱乐媒体类
+            '影视娱乐', '音乐艺术', '体育赛事', '游戏电竞', '网络文化',
+            '明星八卦', '动漫文化', '文学创作', '新闻传媒'
         ]
         
         # 特征提取器
@@ -65,7 +81,83 @@ class TextDomainClassifier:
         # 如果提供了模型路径，尝试加载
         if model_path and os.path.exists(model_path):
             self.load_model(model_path)
+
+    def enhance_feature_extraction(self):
+        """增强特征提取"""
+        # 1. 使用多种特征组合
+        self.vectorizer = TfidfVectorizer(
+            max_features=8000,  # 增加特征数量
+            ngram_range=(1, 3),  # 扩展到3-gram
+            min_df=2,  # 过滤低频词
+            max_df=0.8,  # 过滤高频词
+            sublinear_tf=True,  # 使用对数缩放
+            use_idf=True,
+            smooth_idf=True,
+            
+            # 自定义停用词列表
+            stop_words=self.get_extended_stopwords()
+        )
+        
+        # 2. 添加词性特征
+        self.pos_vectorizer = TfidfVectorizer(
+            max_features=2000,
+            analyzer=self.extract_pos_features
+        )
+        
+        # 3. 添加句法特征
+        self.syntactic_features = [
+            '句子长度', '标点比例', '连接词数量',
+            '疑问句数量', '感叹句数量', '平均句长'
+        ]
+
+    def get_extended_stopwords(self):
+        """获取扩展的停用词表"""
+        # 中文停用词
+        chinese_stopwords = ['的', '了', '在', '是', '我', '有', '和', '就', 
+                            '不', '人', '都', '一', '个', '上', '也', '很', 
+                            '到', '说', '要', '去', '你', '会', '着', '没有', 
+                            '看', '好', '自己', '这', '那', '中', '等']
+        
+        # 领域特定停用词
+        domain_stopwords = ['认为', '觉得', '可能', '应该', '可以', '需要',
+                        '方面', '问题', '发展', '提高', '加强', '推进']
+        
+        return chinese_stopwords + domain_stopwords
+
+    def create_ensemble_classifier(self):
+        """创建集成分类器"""
+        from sklearn.ensemble import VotingClassifier, StackingClassifier
+        
+        # 多个基分类器
+        classifiers = {
+            'nb': OneVsRestClassifier(MultinomialNB(alpha=0.1)),
+            'lr': OneVsRestClassifier(LogisticRegression(
+                C=1.0, 
+                max_iter=1000,
+                class_weight='balanced'
+            )),
+            'rf': OneVsRestClassifier(RandomForestClassifier(
+                n_estimators=100,
+                max_depth=None,
+                min_samples_split=2
+            )),
+            'svm': OneVsRestClassifier(LinearSVC(
+                C=1.0,
+                class_weight='balanced',
+                max_iter=2000
+            ))
+        }
     
+    # 使用Stacking集成
+    self.classifier = StackingClassifier(
+        estimators=[
+            ('nb', classifiers['nb']),
+            ('lr', classifiers['lr']),
+            ('rf', classifiers['rf'])
+        ],
+        final_estimator=LogisticRegression(),
+        cv=5
+    )
     def initialize_jieba(self):
         """初始化中文分词器"""
         domain_words = []
@@ -88,6 +180,75 @@ class TextDomainClassifier:
         
         for word in domain_words + common_words:
             jieba.add_word(word)
+
+    def enhance_analysis_dimensions(self):
+        """增强分析维度"""
+        # 1. 逻辑结构分析
+        logic_indicators = {
+            '因果关系': ['因为', '所以', '因此', '由于', '导致', '结果'],
+            '转折关系': ['但是', '然而', '尽管', '虽然', '可是', '不过'],
+            '递进关系': ['而且', '并且', '甚至', '更', '还', '进而'],
+            '总结关系': ['总之', '综上所述', '总而言之', '概括来说']
+        }
+        
+        # 2. 情感分析
+        sentiment_indicators = {
+            '积极': ['成功', '优秀', '进步', '发展', '改善', '提升'],
+            '消极': ['问题', '困难', '挑战', '不足', '缺陷', '限制'],
+            '中性': ['分析', '讨论', '研究', '考虑', '探讨', '思考']
+        }
+        
+        # 3. 论证强度分析
+        argument_strength_indicators = {
+            '数据支持': ['据统计', '数据显示', '研究表明', '调查发现'],
+            '案例支持': ['例如', '比如', '举例来说', '具体来说'],
+            '权威引用': ['专家指出', '研究表明', '权威机构', '官方数据']
+        }
+
+    def analyze_viewpoint_enhanced(self, original_text, response_text, perspective_type):
+        """增强的观点分析"""
+        analysis = {
+            'original_text': original_text,
+            'response_text': response_text,
+            'perspective_type': perspective_type,
+            'timestamp': datetime.now().isoformat(),
+            
+            # 文本分析
+            'text_analysis': {
+                'length': len(response_text),
+                'sentence_count': self.count_sentences(response_text),
+                'avg_sentence_length': self.calculate_avg_sentence_length(response_text),
+                'readability_score': self.calculate_readability(response_text)
+            },
+            
+            # 逻辑分析
+            'logic_analysis': {
+                'logic_score': self.analyze_logic_structure(response_text),
+                'argument_structure': self.analyze_argument_structure(response_text),
+                'coherence_score': self.analyze_text_coherence(response_text)
+            },
+            
+            # 内容分析
+            'content_analysis': {
+                'keywords': self.extract_keywords(response_text, 10),
+                'main_ideas': self.extract_main_ideas(response_text),
+                'supporting_evidence': self.identify_supporting_evidence(response_text)
+            },
+            
+            # 情感分析
+            'sentiment_analysis': {
+                'sentiment_score': self.analyze_sentiment(response_text),
+                'confidence_level': self.analyze_confidence(response_text),
+                'emotional_tone': self.analyze_emotional_tone(response_text)
+            },
+            
+            # 改进建议
+            'improvement_suggestions': self.generate_improvement_suggestions(
+                response_text, perspective_type
+            )
+        }
+        
+        return analysis
     
     def initialize_analysis_templates(self):
         """初始化观点分析模板"""
@@ -303,7 +464,58 @@ class TextDomainClassifier:
             suggestion += " 可以补充具体案例，增强说服力。"
         
         return suggestion
-    
+        
+    def generate_dynamic_feedback(self, response_text, analysis_results):
+        """生成动态反馈"""
+        feedback_sections = []
+        
+        # 1. 肯定部分（基于具体分析结果）
+        strengths = []
+        
+        if analysis_results['logic_analysis']['logic_score'] > 0.8:
+            strengths.append("逻辑清晰，论证有力")
+        if analysis_results['content_analysis']['main_ideas']:
+            strengths.append(f"观点明确，主要观点包括：{', '.join(analysis_results['content_analysis']['main_ideas'][:3])}")
+        if analysis_results['sentiment_analysis']['confidence_level'] > 0.7:
+            strengths.append("表述自信，有说服力")
+        if len(analysis_results['content_analysis']['supporting_evidence']) > 0:
+            strengths.append("提供了有效的论据支持")
+        
+        positive_feedback = f"你的观点展现了很好的思考能力。"
+        if strengths:
+            positive_feedback += f" 特别是：{', '.join(strengths)}。"
+        
+        feedback_sections.append(positive_feedback)
+        
+        # 2. 针对视角的具体反馈
+        perspective_feedback = {
+            'neutral': "你从客观中立的视角进行了分析，平衡了各方观点。",
+            'opposite': "你成功地从对立角度进行了思考，展现了辩证思维。",
+            'supplement': "你的补充观点很有价值，扩展了原有视角。",
+            'unique': "你的小众视角很独特，展现了创新性思考。"
+        }
+        
+        if perspective_type in perspective_feedback:
+            feedback_sections.append(perspective_feedback[perspective_type])
+        
+        # 3. 具体改进建议
+        suggestions = []
+        
+        if analysis_results['logic_analysis']['logic_score'] < 0.6:
+            suggestions.append("可以加强逻辑结构，使用更多连接词和过渡句")
+        
+        if len(analysis_results['content_analysis']['supporting_evidence']) < 2:
+            suggestions.append("可以补充更多具体案例或数据支持")
+        
+        if analysis_results['text_analysis']['readability_score'] < 0.5:
+            suggestions.append("可以优化表达，使观点更加清晰易懂")
+        
+        if suggestions:
+            suggestions_text = "为了使观点更加完善，建议：" + "；".join(suggestions)
+            feedback_sections.append(suggestions_text)
+        
+        return " ".join(feedback_sections)
+
     def analyze_logic_structure(self, text: str) -> float:
         """分析逻辑结构评分"""
         # 基于文本特征计算逻辑评分
