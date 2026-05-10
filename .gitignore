@@ -19,8 +19,3 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# 日志文件夹
-logs/
-log/
-*.log
