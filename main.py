@@ -1,6 +1,5 @@
 """
-辩证思考AI互动系统 - 增强版主应用
-整合了所有优化功能
+辩证思考AI互动系统
 """
 import asyncio
 import logging
@@ -42,8 +41,8 @@ logger = logging.getLogger(__name__)
 # 创建FastAPI应用
 app = FastAPI(
     title="辩证思考AI互动系统 - 增强版",
-    description="基于集成机器学习的文本领域分类与辩证思考互动系统",
-    version="2.0.0",
+    description="基于集成机器学习的文本领域分类、观点分析与文章生成系统",
+    version="3.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_tags=[
@@ -54,6 +53,10 @@ app = FastAPI(
         {
             "name": "分析",
             "description": "观点分析相关操作"
+        },
+        {
+            "name": "生成",
+            "description": "文章生成相关操作"
         },
         {
             "name": "管理",
@@ -115,6 +118,16 @@ class AnalyzeRequest(BaseModel):
     response_text: str = Field(..., min_length=1, max_length=10000, description="用户回应文本")
     perspective_type: str = Field("neutral", description="视角类型")
     analysis_depth: str = Field("standard", description="分析深度: basic/standard/comprehensive")
+
+class GenerateArticleRequest(BaseModel):
+    """文章生成请求模型"""
+    topic: str = Field(..., min_length=2, max_length=200, description="文章主题")
+    perspective_type: str = Field("neutral", description="视角类型: neutral/opposite/supplement/unique")
+    target_length: int = Field(500, ge=100, le=5000, description="目标字数(100-5000)")
+    structure_type: str = Field("argumentative", description="结构类型: argumentative/expository/persuasive/comparative")
+    include_keywords: Optional[List[str]] = Field(None, description="需要包含的关键词")
+    target_audience: str = Field("general", description="目标读者: general/professional/student")
+    writing_style: str = Field("standard", description="写作风格: standard/academic/casual")
 
 class BatchRequest(BaseModel):
     """批量请求模型"""
@@ -229,7 +242,7 @@ async def startup_event():
     # 启动后台任务
     asyncio.create_task(background_cleanup_task())
     
-    logger.info("服务启动完成，版本：2.0.0")
+    logger.info("服务启动完成，版本：3.0.0")
 
 async def initialize_model_manager():
     """初始化模型管理器"""
@@ -472,6 +485,89 @@ def generate_mock_analysis(original_text: str, response_text: str, perspective_t
     
     return analysis
 
+async def generate_article(request: GenerateArticleRequest) -> Dict[str, Any]:
+    """生成文章"""
+    start_time = time.time()
+    
+    try:
+        if model_manager and hasattr(model_manager, 'generate_article'):
+            result = await model_manager.generate_article(
+                topic=request.topic,
+                perspective_type=request.perspective_type,
+                target_length=request.target_length,
+                structure_type=request.structure_type,
+                include_keywords=request.include_keywords,
+                target_audience=request.target_audience,
+                writing_style=request.writing_style
+            )
+        else:
+            # 模拟生成
+            result = generate_mock_article(request)
+        
+        processing_time = time.time() - start_time
+        
+        return {
+            'success': True,
+            'data': {
+                'article': result,
+                'processing_time': round(processing_time, 3),
+                'request_info': {
+                    'topic': request.topic,
+                    'perspective_type': request.perspective_type,
+                    'target_length': request.target_length,
+                    'structure_type': request.structure_type
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"文章生成失败: {e}")
+        raise HTTPException(status_code=500, detail=f"文章生成失败: {str(e)}")
+
+def generate_mock_article(request: GenerateArticleRequest) -> Dict[str, Any]:
+    """生成模拟文章"""
+    # 生成文章内容
+    content = f"""关于{request.topic}的思考
+
+近年来，{request.topic}问题引起了社会各界的广泛关注。从{request.perspective_type}的视角来看，这一议题涉及多个维度的考量。
+
+首先，从技术发展的角度分析，{request.topic}代表了当前社会发展的重要趋势。技术的进步为我们提供了新的解决思路和方法，但同时也带来了新的挑战和问题。这需要我们在享受技术红利的同时，认真思考如何平衡各种利益关系。
+
+其次，从社会影响的角度来看，{request.topic}对人们的生活方式、工作模式和社会关系都产生了深远的影响。这种影响既有积极的一面，也有需要警惕的风险。我们需要以开放的心态面对这些变化，同时保持审慎的态度。
+
+再者，从个人发展的层面来说，{request.topic}为个人成长和职业发展提供了新的机遇。每个人都应该积极面对这一变化，不断提升自己的适应能力和创新能力，以便在快速变化的环境中保持竞争力。
+
+总之，{request.topic}是一个复杂而重要的议题。我们需要保持理性的思考，积极探讨适合中国国情的发展道路，为实现可持续发展贡献力量。"""
+    
+    # 确保达到目标长度
+    while len(content) < request.target_length:
+        additional = f"""从更深层次来看，{request.topic}还涉及到价值观念、文化传统和社会制度的多个层面。我们需要在继承优秀传统文化的基础上，积极探索符合时代要求的创新路径。
+
+在未来的发展中，{request.topic}将继续成为社会关注的热点。我们需要建立更加完善的制度体系，为相关领域的发展提供有力保障。同时，加强国际合作与交流，学习借鉴国际先进经验，也是推动{request.topic}健康发展的有效途径。"""
+        content += "\n\n" + additional
+    
+    return {
+        'title': f"关于{request.topic}的思考与分析",
+        'content': content,
+        'main_idea': f"探讨{request.topic}的多方面影响和发展趋势",
+        'structure': [
+            {'section': '引言', 'content': '背景介绍', 'length': 50},
+            {'section': '分析1', 'content': '技术角度', 'length': 100},
+            {'section': '分析2', 'content': '社会角度', 'length': 100},
+            {'section': '分析3', 'content': '个人角度', 'length': 100},
+            {'section': '结论', 'content': '总结展望', 'length': 50}
+        ],
+        'keywords': [request.topic, '发展', '影响', '趋势', '思考'][:5],
+        'word_count': len(content),
+        'reading_time_minutes': round(len(content) / 300, 1),
+        'target_audience': request.target_audience,
+        'writing_style': request.writing_style,
+        'coherence_score': round(random.uniform(0.6, 0.9), 2),
+        'quality_score': round(random.uniform(0.6, 0.9), 2),
+        'generation_method': '模拟生成',
+        'timestamp': datetime.now().isoformat()
+    }
+
 # API路由
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -657,7 +753,29 @@ async def generate_perspectives_endpoint(request: PerspectiveRequest):
         )
         raise HTTPException(status_code=500, detail=f"生成视角失败: {str(e)}")
 
-@app.post("/api/batch-process", tags=["分类", "分析"])
+@app.post("/api/generate-article", tags=["生成"])
+async def generate_article_endpoint(request: GenerateArticleRequest):
+    """生成文章端点"""
+    PERFORMANCE_METRICS['requests'] += 1
+    start_time = time.time()
+    
+    try:
+        result = await generate_article(request)
+        
+        PERFORMANCE_METRICS['avg_response_time'] = (
+            PERFORMANCE_METRICS['avg_response_time'] * 0.9 + 
+            (time.time() - start_time) * 0.1
+        )
+        
+        return result
+        
+    except Exception as e:
+        PERFORMANCE_METRICS['error_rate'] = (
+            PERFORMANCE_METRICS['error_rate'] * 0.9 + 0.1
+        )
+        raise
+
+@app.post("/api/batch-process", tags=["分类", "分析", "生成"])
 async def batch_process_endpoint(request: BatchRequest):
     """批量处理端点"""
     PERFORMANCE_METRICS['requests'] += 1
@@ -682,6 +800,20 @@ async def batch_process_endpoint(request: BatchRequest):
                     request.texts[i+1], 
                     "neutral"
                 ))
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        elif request.operation == "generate":
+            # 对于生成，每个文本都是一个主题
+            tasks = []
+            for text in request.texts:
+                # 创建生成请求
+                gen_request = GenerateArticleRequest(
+                    topic=text,
+                    perspective_type="neutral",
+                    target_length=300
+                )
+                tasks.append(generate_article(gen_request))
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
         
@@ -715,6 +847,40 @@ async def get_perspective_types_endpoint():
         "data": {
             "perspective_types": PERSPECTIVE_TYPES,
             "count": len(PERSPECTIVE_TYPES)
+        }
+    }
+
+@app.get("/api/article-structures", tags=["生成"])
+async def get_article_structures_endpoint():
+    """获取文章结构类型"""
+    structures = {
+        "argumentative": {
+            "name": "论述型",
+            "description": "提出论点并进行论证的结构",
+            "sections": ["引言", "论点1", "论点2", "论点3", "反驳观点", "结论"]
+        },
+        "expository": {
+            "name": "说明型", 
+            "description": "说明和解释问题的结构",
+            "sections": ["背景介绍", "问题提出", "分析探讨", "解决方案", "总结展望"]
+        },
+        "persuasive": {
+            "name": "说服型",
+            "description": "说服读者接受某种观点的结构",
+            "sections": ["问题引出", "立场陈述", "论据支持", "反方观点", "强化立场", "行动呼吁"]
+        },
+        "comparative": {
+            "name": "比较型",
+            "description": "比较两种或多种观点的结构",
+            "sections": ["主题引入", "A方分析", "B方分析", "对比分析", "综合评价", "总结建议"]
+        }
+    }
+    
+    return {
+        "success": True,
+        "data": {
+            "structures": structures,
+            "count": len(structures)
         }
     }
 
@@ -784,198 +950,361 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 # 前端界面生成
 async def generate_enhanced_interface() -> str:
-    html = """<!DOCTYPE html>
+    """生成增强的前端界面"""
+    html = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>辩证思考AI互动系统</title>
+    <title>辩证思考AI互动系统 - 增强版 3.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { 
-            text-align: center; 
-            color: white; 
-            margin-bottom: 40px; 
-            padding: 40px 0; 
-        }
-        .header h1 { 
-            font-size: 3rem; 
-            margin-bottom: 15px; 
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        .card { 
-            background: white; 
-            border-radius: 20px; 
-            padding: 40px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
-            margin-bottom: 30px; 
-        }
-        .input-area { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 10px; font-weight: 600; color: #333; }
-        textarea { 
-            width: 100%; 
-            min-height: 150px; 
-            padding: 20px; 
-            border: 2px solid #e0e0e0; 
-            border-radius: 12px; 
-            font-size: 16px; 
-            font-family: inherit; 
-            resize: vertical; 
-        }
-        textarea:focus { outline: none; border-color: #667eea; }
-        button { 
-            padding: 12px 30px; 
-            border: none; 
-            border-radius: 10px; 
-            font-size: 16px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            color: white; 
-            margin-right: 10px; 
-            margin-bottom: 10px;
-        }
-        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.4); }
-        button.secondary { background: linear-gradient(135deg, #3498db, #2980b9); }
-        button.success { background: linear-gradient(135deg, #2ecc71, #27ae60); }
-        button.warning { background: linear-gradient(135deg, #f1c40f, #f39c12); }
-        button.danger { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-        .loading { display: none; text-align: center; margin: 20px 0; }
-        .loading-spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .result { margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; }
-        .error { color: #e74c3c; background: #fdf2f2; padding: 10px; border-radius: 5px; margin-top: 10px; }
-        .success { color: #2ecc71; background: #f2fdf7; padding: 10px; border-radius: 5px; margin-top: 10px; }
-        .info { color: #3498db; background: #f0f8ff; padding: 10px; border-radius: 5px; margin-top: 10px; }
-        .perspectives-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
-        .perspective-card { 
-            border: 2px solid; 
-            border-radius: 12px; 
-            padding: 20px; 
-            position: relative;
-            transition: transform 0.3s;
-        }
-        .perspective-card:hover { transform: translateY(-5px); }
-        .perspective-header { display: flex; align-items: center; margin-bottom: 10px; }
-        .perspective-icon { font-size: 20px; margin-right: 10px; }
-        .perspective-title { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
-        .perspective-hint { color: #666; font-size: 14px; margin-bottom: 10px; }
-        .perspective-description { font-size: 12px; color: #888; }
-        .example-topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 20px; }
-        .example-topic { 
-            background: #f8f9fa; 
-            border-radius: 10px; 
-            padding: 15px; 
-            cursor: pointer; 
-            transition: all 0.3s;
-            border: 2px solid transparent;
-        }
-        .example-topic:hover { border-color: #667eea; transform: translateY(-3px); }
-        .example-topic h4 { margin-bottom: 10px; color: #333; }
-        .example-topic p { color: #666; font-size: 14px; margin-bottom: 10px; }
-        .tags { display: flex; flex-wrap: wrap; gap: 5px; }
-        .tag { background: #e3f2fd; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
-        .model-info { 
-            position: fixed; 
-            top: 20px; 
-            right: 20px; 
-            background: white; 
-            padding: 10px 15px; 
-            border-radius: 20px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .status-online { background: #2ecc71; }
-        .status-offline { background: #e74c3c; }
-        .analysis-examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
-        .analysis-example { 
-            border: 2px solid #e0e0e0; 
-            border-radius: 12px; 
-            padding: 20px; 
-            background: white;
-            transition: all 0.3s;
-        }
-        .analysis-example:hover { border-color: #667eea; transform: translateY(-3px); }
-        .analysis-example h4 { color: #333; margin-bottom: 10px; }
-        .analysis-example p { color: #666; font-size: 14px; margin-bottom: 10px; }
-        .analysis-result { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 10px; }
-        .analysis-positive { color: #2ecc71; font-weight: 600; margin-bottom: 8px; }
-        .analysis-suggestion { color: #f39c12; font-style: italic; }
+        .btn-primary { @apply bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200; }
+        .btn-secondary { @apply bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200; }
+        .btn-warning { @apply bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200; }
+        .btn-danger { @apply bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200; }
+        .card { @apply bg-white rounded-xl shadow-lg p-6 mb-6; }
+        .input-field { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none; }
+        .loading { @apply flex items-center justify-center space-x-2; }
+        .loading-spinner { @apply w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🤔 辩证思考AI互动系统</h1>
-            <p>基于机器学习的文本领域分类、视角生成与观点分析平台</p>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-4">
+    <div class="container mx-auto max-w-7xl">
+        <!-- 头部 -->
+        <div class="text-center mb-8 pt-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">🤔 辩证思考AI互动系统 - 增强版 3.0</h1>
+            <p class="text-gray-600 text-lg">基于集成机器学习的文本分类、观点分析与文章生成平台</p>
         </div>
-        
-        <div class="model-info" id="model-status">
-            <div class="status-dot status-online"></div>
-            <span>模型已加载</span>
-        </div>
-        
-        <div class="card">
-            <h2>🔍 文本分析与视角生成</h2>
-            <div class="input-area">
-                <label for="original-text">原始观点：</label>
-                <textarea id="original-text" placeholder="请输入原始观点，例如：人工智能是未来科技发展的重要方向。"></textarea>
-            </div>
-            
-            <div class="input-area">
-                <label for="response-text">你的回应：</label>
-                <textarea id="response-text" placeholder="请在此输入你的观点回应，针对原始观点进行深入分析。"></textarea>
-            </div>
-            
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 左侧：功能操作 -->
             <div>
-                <label for="perspective-type">选择视角类型：</label>
-                <select id="perspective-type" style="padding: 10px; border-radius: 8px; border: 2px solid #e0e0e0; margin-bottom: 15px; width: 200px;">
-                    <option value="neutral">中立视角</option>
-                    <option value="opposite">对立视角</option>
-                    <option value="supplement">补充视角</option>
-                    <option value="unique">小众视角</option>
-                </select>
+                <!-- 1. 文本分类 -->
+                <div class="card">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">🔍 文本分类测试</h2>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">输入文本：</label>
+                        <textarea id="classify-text" class="input-field" rows="3">人工智能是未来科技发展的重要方向，机器学习算法正在改变我们的生活。</textarea>
+                    </div>
+                    <button onclick="testClassify()" class="btn-primary">文本分类</button>
+                    <div id="classify-result" class="mt-4 p-4 bg-gray-50 rounded-lg"></div>
+                </div>
+
+                <!-- 2. 观点分析 -->
+                <div class="card">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 观点分析测试</h2>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">原始观点：</label>
+                        <textarea id="original-text" class="input-field" rows="2">人工智能将完全取代人类工作</textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">你的回应：</label>
+                        <textarea id="response-text" class="input-field" rows="3">我认为人工智能会取代部分重复性工作，但创造性、情感交流和复杂决策工作仍需要人类。人机协作将是未来趋势。</textarea>
+                    </div>
+                    <button onclick="testAnalysis()" class="btn-primary">分析观点</button>
+                    <div id="analysis-result" class="mt-4 p-4 bg-gray-50 rounded-lg"></div>
+                </div>
             </div>
-            
+
+            <!-- 右侧：文章生成 -->
             <div>
-                <button onclick="classifyText()">文本分类</button>
-                <button class="secondary" onclick="generatePerspectives()">生成视角</button>
-                <button class="success" onclick="analyzeViewpoint()">分析观点</button>
-                <button class="warning" onclick="loadExample()">加载示例</button>
-                <button class="danger" onclick="clearAll()">清空</button>
+                <!-- 3. 文章生成 -->
+                <div class="card">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">✍️ 文章生成测试</h2>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">文章主题：</label>
+                        <input type="text" id="article-topic" class="input-field" value="人工智能对社会的影响">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 mb-2">视角类型：</label>
+                            <select id="article-perspective" class="input-field">
+                                <option value="neutral">中立视角</option>
+                                <option value="opposite">对立视角</option>
+                                <option value="supplement">补充视角</option>
+                                <option value="unique">小众视角</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 mb-2">目标字数：</label>
+                            <select id="article-length" class="input-field">
+                                <option value="200">200字</option>
+                                <option value="300" selected>300字</option>
+                                <option value="500">500字</option>
+                                <option value="800">800字</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="testGenerateArticle()" class="btn-secondary w-full">生成文章</button>
+                    <div id="article-result" class="mt-4 p-4 bg-gray-50 rounded-lg"></div>
+                </div>
+
+                <!-- 4. 系统信息 -->
+                <div class="card">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">📈 系统信息</h2>
+                    <div class="space-y-2">
+                        <p>版本：3.0.0</p>
+                        <p>访问API文档：<a href="/api/docs" class="text-blue-500 hover:underline" target="_blank">/api/docs</a></p>
+                        <p>健康检查：<a href="/api/health" class="text-blue-500 hover:underline" target="_blank">/api/health</a></p>
+                        <p>模型状态：<span id="model-status">正在检查...</span></p>
+                    </div>
+                </div>
             </div>
-            
-            <div id="loading" class="loading">
-                <div class="loading-spinner"></div>
-                <p>正在处理...</p>
-            </div>
-            
-            <div id="result"></div>
         </div>
-        
-        <div class="card">
-            <h2>📊 系统信息</h2>
-            <p>访问API文档: <a href="/api/docs" target="_blank">/api/docs</a></p>
-            <p>健康检查: <a href="/api/health" target="_blank">/api/health</a></p>
-            <p>支持的视角类型: <span id="perspective-types-count">6</span> 种</p>
+
+        <!-- API示例 -->
+        <div class="card mt-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">🛠️ API调用示例</h2>
+            <div class="space-y-4">
+                <!-- 文本分类示例 -->
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-2">文本分类API：</h3>
+                    <pre class="bg-gray-800 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
+POST /api/classify
+Content-Type: application/json
+
+{
+  "text": "人工智能是未来科技发展的重要方向",
+  "top_k": 3,
+  "use_cache": true,
+  "detailed": true
+}</pre>
+                </div>
+
+                <!-- 观点分析示例 -->
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-2">观点分析API：</h3>
+                    <pre class="bg-gray-800 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
+POST /api/analyze-viewpoint
+Content-Type: application/json
+
+{
+  "original_text": "人工智能将完全取代人类工作",
+  "response_text": "我认为人工智能会取代部分重复性工作...",
+  "perspective_type": "neutral",
+  "analysis_depth": "standard"
+}</pre>
+                </div>
+
+                <!-- 文章生成示例 -->
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-2">文章生成API：</h3>
+                    <pre class="bg-gray-800 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
+POST /api/generate-article
+Content-Type: application/json
+
+{
+  "topic": "人工智能对社会的影响",
+  "perspective_type": "neutral",
+  "target_length": 500,
+  "structure_type": "argumentative",
+  "target_audience": "general",
+  "writing_style": "standard"
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- 页脚 -->
+        <div class="text-center text-gray-500 text-sm mt-8 py-4 border-t border-gray-200">
+            <p>辩证思考AI互动系统 - 增强版 3.0 © 2024</p>
+            <p class="mt-1">技术支持：基于FastAPI + 集成机器学习模型</p>
         </div>
     </div>
-    
+
     <script>
-        // 全局变量
-        let currentText = '';
-        let currentPerspectives = [];
-        
+        // 工具函数
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <span>正在处理中...</span>
+                </div>
+            `;
+        }
+
+        function showError(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `
+                <div class="bg-red-50 border-l-4 border-red-500 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">❌</div>
+                        <div class="ml-3">
+                            <p class="text-sm text-red-700">${message}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 文本分类测试
+        async function testClassify() {
+            const text = document.getElementById('classify-text').value;
+            const resultDiv = document.getElementById('classify-result');
+            
+            if (!text.trim()) {
+                alert('请输入文本！');
+                return;
+            }
+            
+            showLoading('classify-result');
+            
+            try {
+                const response = await fetch('/api/classify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        text: text, 
+                        top_k: 3, 
+                        detailed: true,
+                        use_cache: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error?.message || '请求失败');
+                }
+                
+                let html = '<h3 class="font-semibold text-lg text-gray-800 mb-2">📊 分类结果</h3>';
+                html += `<p class="mb-2"><strong>文本：</strong>${data.data.text.substring(0, 100)}${data.data.text.length > 100 ? '...' : ''}</p>`;
+                
+                if (data.data.domains && data.data.domains.length > 0) {
+                    html += '<p class="mb-2"><strong>主要领域：</strong>';
+                    data.data.domains.forEach((domain, index) => {
+                        const prob = data.data.probabilities?.[domain] || 0;
+                        const percentage = (prob * 100).toFixed(1);
+                        html += `<span class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded mr-1 mb-1">${domain} (${percentage}%)</span>`;
+                    });
+                    html += '</p>';
+                }
+                
+                html += `<p class="text-sm text-gray-600 mt-2">处理时间: ${data.data.processing_time}s | 使用模型: ${data.data.model_used ? '是' : '否（模拟模式）'}</p>`;
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                showError('classify-result', `错误: ${error.message}`);
+            }
+        }
+
+        // 观点分析测试
+        async function testAnalysis() {
+            const originalText = document.getElementById('original-text').value;
+            const responseText = document.getElementById('response-text').value;
+            const resultDiv = document.getElementById('analysis-result');
+            
+            if (!originalText.trim() || !responseText.trim()) {
+                alert('请输入原始观点和回应！');
+                return;
+            }
+            
+            showLoading('analysis-result');
+            
+            try {
+                const response = await fetch('/api/analyze-viewpoint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        original_text: originalText,
+                        response_text: responseText,
+                        perspective_type: 'neutral',
+                        analysis_depth: 'standard'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error?.message || '请求失败');
+                }
+                
+                let html = '<h3 class="font-semibold text-lg text-gray-800 mb-2">🔍 分析结果</h3>';
+                html += `<p class="mb-2"><strong>肯定部分：</strong>${data.data.analysis.positive}</p>`;
+                html += `<p class="mb-2"><strong>优化建议：</strong>${data.data.analysis.suggestion}</p>`;
+                
+                if (data.data.analysis.keywords && data.data.analysis.keywords.length > 0) {
+                    html += `<p class="mb-2"><strong>关键词：</strong>`;
+                    data.data.analysis.keywords.forEach(keyword => {
+                        html += `<span class="inline-block bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded mr-1 mb-1">${keyword}</span>`;
+                    });
+                    html += '</p>';
+                }
+                
+                if (data.data.analysis.logic_score) {
+                    html += `<p class="mb-2"><strong>逻辑评分：</strong>${data.data.analysis.logic_score}/1.0</p>`;
+                }
+                
+                html += `<p class="text-sm text-gray-600 mt-2">处理时间: ${data.data.processing_time}s</p>`;
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                showError('analysis-result', `错误: ${error.message}`);
+            }
+        }
+
+        // 文章生成测试
+        async function testGenerateArticle() {
+            const topic = document.getElementById('article-topic').value;
+            const perspective = document.getElementById('article-perspective').value;
+            const length = parseInt(document.getElementById('article-length').value);
+            const resultDiv = document.getElementById('article-result');
+            
+            if (!topic.trim()) {
+                alert('请输入文章主题！');
+                return;
+            }
+            
+            showLoading('article-result');
+            
+            try {
+                const response = await fetch('/api/generate-article', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        topic: topic,
+                        perspective_type: perspective,
+                        target_length: length,
+                        structure_type: 'argumentative',
+                        target_audience: 'general',
+                        writing_style: 'standard'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error?.message || '请求失败');
+                }
+                
+                const article = data.data.article;
+                
+                let html = '<h3 class="font-semibold text-lg text-gray-800 mb-2">✍️ 生成的文章</h3>';
+                html += `<h4 class="font-semibold text-md text-blue-700 mb-2">${article.title}</h4>`;
+                html += `<div class="bg-gray-50 p-4 rounded-lg mb-3 max-h-60 overflow-y-auto">`;
+                html += `<p class="whitespace-pre-wrap text-gray-700">${article.content}</p>`;
+                html += `</div>`;
+                
+                html += `<div class="grid grid-cols-2 gap-4 mb-3">`;
+                html += `<div><strong>字数：</strong>${article.word_count}字</div>`;
+                html += `<div><strong>阅读时间：</strong>${article.reading_time_minutes}分钟</div>`;
+                html += `<div><strong>目标读者：</strong>${article.target_audience}</div>`;
+                html += `<div><strong>连贯性评分：</strong>${article.coherence_score}/1.0</div>`;
+                html += `</div>`;
+                
+                html += `<p class="text-sm text-gray-600">处理时间: ${data.data.processing_time}s | 生成方法: ${article.generation_method}</p>`;
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                showError('article-result', `错误: ${error.message}`);
+            }
+        }
+
         // 检查模型状态
         async function checkModelStatus() {
             try {
@@ -983,393 +1312,107 @@ async def generate_enhanced_interface() -> str:
                 const data = await response.json();
                 
                 const statusElement = document.getElementById('model-status');
-                const statusDot = statusElement.querySelector('.status-dot');
-                const statusText = statusElement.querySelector('span');
-                
                 if (data.model_loaded) {
-                    statusDot.className = 'status-dot status-online';
-                    statusText.textContent = '模型已加载';
+                    statusElement.innerHTML = '<span class="text-green-600">✅ 模型已加载</span>';
                 } else {
-                    statusDot.className = 'status-dot status-offline';
-                    statusText.textContent = '模型未加载';
+                    statusElement.innerHTML = '<span class="text-yellow-600">⚠️ 模型未加载（使用模拟模式）</span>';
                 }
             } catch (error) {
-                console.error('检查模型状态失败:', error);
+                document.getElementById('model-status').innerHTML = '<span class="text-red-600">❌ 状态检查失败</span>';
             }
         }
-        
-        // 文本分类
-        async function classifyText() {
-            const originalText = document.getElementById('original-text').value;
-            const loading = document.getElementById('loading');
-            const resultDiv = document.getElementById('result');
-            
-            if (!originalText.trim()) {
-                showMessage('请输入要分类的文本！', 'error');
-                return;
-            }
-            
-            loading.style.display = 'block';
-            resultDiv.innerHTML = '';
-            currentText = originalText;
-            
-            try {
-                const response = await fetch('/api/classify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: originalText, top_k: 3 })
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    showMessage(`分类失败: ${data.error}`, 'error');
-                    return;
-                }
-                
-                let html = '<div class="success"><h3>📊 文本分类结果</h3>';
-                html += `<p><strong>输入文本:</strong> ${data.data.text}</p>`;
-                
-                if (data.data.domains && data.data.domains.length > 0) {
-                    html += `<p><strong>主要领域:</strong> ${data.data.top_domain || '无'}</p>`;
-                    html += `<p><strong>所有可能领域:</strong> ${data.data.domains.join(', ')}</p>`;
-                    
-                    if (data.data.probabilities) {
-                        html += '<p><strong>概率分布:</strong></p><ul>';
-                        for (const [domain, prob] of Object.entries(data.data.probabilities)) {
-                            const percentage = (prob * 100).toFixed(1);
-                            html += `<li>${domain}: ${percentage}%</li>`;
-                        }
-                        html += '</ul>';
-                    }
-                } else {
-                    html += '<p>未识别到明确的领域</p>';
-                }
-                
-                html += `<p><em>处理时间: ${data.data.processing_time || 0}秒</em></p>`;
-                html += '</div>';
-                
-                resultDiv.innerHTML = html;
-                showMessage('文本分类完成！', 'success');
-                
-            } catch (error) {
-                console.error('请求失败:', error);
-                showMessage(`请求失败: ${error.message}`, 'error');
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-        
-        // 生成视角
-        async function generatePerspectives(count = 5) {
-            const originalText = document.getElementById('original-text').value;
-            const loading = document.getElementById('loading');
-            const resultDiv = document.getElementById('result');
-            
-            if (!originalText.trim()) {
-                showMessage('请输入原始观点！', 'error');
-                return;
-            }
-            
-            loading.style.display = 'block';
-            resultDiv.innerHTML = '';
-            currentText = originalText;
-            
-            try {
-                const response = await fetch('/api/generate-perspectives', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: originalText, count: count })
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    showMessage(`生成视角失败: ${data.error}`, 'error');
-                    return;
-                }
-                
-                let html = `<div class="success"><h3>🎯 为您生成 ${data.data.perspectives.length} 个不同视角</h3>`;
-                html += `<p><strong>原始观点:</strong> ${data.data.text}</p>`;
-                
-                html += '<div class="perspectives-container">';
-                
-                data.data.perspectives.forEach(perspective => {
-                    html += `
-                        <div class="perspective-card" style="border-color: ${perspective.color}">
-                            <div class="perspective-header">
-                                <div class="perspective-icon" style="color: ${perspective.color}">${getIcon(perspective.icon)}</div>
-                                <h4>${perspective.label}</h4>
-                            </div>
-                            <div class="perspective-title">${perspective.title}</div>
-                            <div class="perspective-hint">${perspective.hint}</div>
-                            <div class="perspective-description">${perspective.description || ''}</div>
-                        </div>
-                    `;
-                });
-                
-                html += '</div>';
-                html += `<p><em>处理时间: ${data.data.processing_time || 0}秒</em></p>`;
-                html += '</div>';
-                
-                resultDiv.innerHTML = html;
-                showMessage(`成功生成 ${data.data.perspectives.length} 个视角！`, 'success');
-                currentPerspectives = data.data.perspectives;
-                
-            } catch (error) {
-                console.error('请求失败:', error);
-                showMessage(`请求失败: ${error.message}`, 'error');
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-        
-        // 分析观点
-        async function analyzeViewpoint() {
-            const originalText = document.getElementById('original-text').value;
-            const responseText = document.getElementById('response-text').value;
-            const perspectiveType = document.getElementById('perspective-type').value;
-            const loading = document.getElementById('loading');
-            const resultDiv = document.getElementById('result');
-            
-            if (!originalText.trim()) {
-                showMessage('请输入原始观点！', 'error');
-                return;
-            }
-            
-            if (!responseText.trim()) {
-                showMessage('请输入你的观点回应！', 'error');
-                return;
-            }
-            
-            loading.style.display = 'block';
-            resultDiv.innerHTML = '';
-            
-            try {
-                const response = await fetch('/api/analyze-viewpoint', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        original_text: originalText, 
-                        response_text: responseText,
-                        perspective_type: perspectiveType
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    showMessage(`分析观点失败: ${data.error}`, 'error');
-                    return;
-                }
-                
-                let html = '<div class="success"><h3>🔍 AI观点分析结果</h3>';
-                html += `<p><strong>原始观点:</strong> ${originalText}</p>`;
-                html += `<p><strong>你的回应:</strong> ${responseText}</p>`;
-                html += `<p><strong>视角类型:</strong> ${getPerspectiveLabel(perspectiveType)}</p>`;
-                
-                html += '<div class="analysis-result" style="margin-top: 20px;">';
-                html += `<div class="analysis-positive"><strong>👍 肯定部分:</strong> ${data.data.analysis.positive}</div>`;
-                html += `<div class="analysis-suggestion"><strong>💡 优化建议:</strong> ${data.data.analysis.suggestion}</div>`;
-                
-                if (data.data.analysis.keywords && data.data.analysis.keywords.length > 0) {
-                    html += `<p><strong>🔑 关键词:</strong> ${data.data.analysis.keywords.join(', ')}</p>`;
-                }
-                
-                if (data.data.analysis.logic_score) {
-                    html += `<p><strong>📊 逻辑评分:</strong> ${data.data.analysis.logic_score}/1.0</p>`;
-                }
-                
-                html += `<p><em>分析方法: ${data.data.analysis.analysis_method || 'AI模型分析'}</em></p>`;
-                html += '</div>';
-                
-                html += `<p><em>处理时间: ${data.data.processing_time || 0}秒</em></p>`;
-                html += '</div>';
-                
-                resultDiv.innerHTML = html;
-                showMessage('观点分析完成！', 'success');
-                
-            } catch (error) {
-                console.error('请求失败:', error);
-                showMessage(`请求失败: ${error.message}`, 'error');
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-        
-        // 加载示例
-        function loadExample() {
-            const examples = [
-                {
-                    original: "人工智能将完全取代人类工作",
-                    response: "我认为人工智能会取代部分重复性工作，但创造性、情感交流和复杂决策工作仍需要人类。人机协作将是未来趋势。",
-                    perspective: "neutral"
-                },
-                {
-                    original: "线上教育比传统教育更有效",
-                    response: "我不同意这个观点。线上教育虽然方便，但缺乏师生互动和即时反馈，对于实践性强的课程效果不佳。传统教育的社交功能也很重要。",
-                    perspective: "opposite"
-                },
-                {
-                    original: "环保应该优先于经济发展",
-                    response: "我认为应该在环保和经济发展之间找到平衡。可以发展绿色经济，既保护环境又促进经济增长，实现可持续发展。",
-                    perspective: "supplement"
-                }
-            ];
-            
-            const example = examples[Math.floor(Math.random() * examples.length)];
-            
-            document.getElementById('original-text').value = example.original;
-            document.getElementById('response-text').value = example.response;
-            document.getElementById('perspective-type').value = example.perspective;
-            
-            showMessage(`已加载示例观点`, 'success');
-        }
-        
-        // 获取视角标签
-        function getPerspectiveLabel(type) {
-            const labels = {
-                'neutral': '中立视角',
-                'opposite': '对立视角',
-                'supplement': '补充视角',
-                'unique': '小众视角',
-                'historical': '历史视角',
-                'global': '全球视角'
-            };
-            return labels[type] || type;
-        }
-        
-        // 获取图标HTML
-        function getIcon(iconClass) {
-            const icons = {
-                'fas fa-exchange-alt': '↔️',
-                'fas fa-balance-scale': '⚖️',
-                'fas fa-plus-circle': '➕',
-                'fas fa-lightbulb': '💡',
-                'fas fa-history': '📜',
-                'fas fa-globe': '🌍',
-                'fas fa-laptop-house': '💻',
-                'fas fa-robot': '🤖',
-                'fas fa-video': '🎬',
-                'fas fa-leaf': '🍃',
-                'fas fa-graduation-cap': '🎓',
-                'fas fa-city': '🏙️'
-            };
-            
-            return icons[iconClass] || '💭';
-        }
-        
-        // 显示消息
-        function showMessage(text, type = 'info') {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = type;
-            messageDiv.textContent = text;
-            messageDiv.style.position = 'fixed';
-            messageDiv.style.top = '20px';
-            messageDiv.style.left = '50%';
-            messageDiv.style.transform = 'translateX(-50%)';
-            messageDiv.style.padding = '10px 20px';
-            messageDiv.style.borderRadius = '5px';
-            messageDiv.style.zIndex = '1000';
-            messageDiv.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
-            
-            if (type === 'error') {
-                messageDiv.style.background = '#fdf2f2';
-                messageDiv.style.color = '#e74c3c';
-                messageDiv.style.border = '1px solid #f8d7da';
-            } else if (type === 'success') {
-                messageDiv.style.background = '#f2fdf7';
-                messageDiv.style.color = '#2ecc71';
-                messageDiv.style.border = '1px solid #d4edda';
-            } else {
-                messageDiv.style.background = '#f0f8ff';
-                messageDiv.style.color = '#3498db';
-                messageDiv.style.border = '1px solid #d1ecf1';
-            }
-            
-            document.body.appendChild(messageDiv);
-            
-            setTimeout(() => {
-                if (messageDiv.parentNode) {
-                    messageDiv.parentNode.removeChild(messageDiv);
-                }
-            }, 3000);
-        }
-        
-        // 清空所有
-        function clearAll() {
-            document.getElementById('original-text').value = '';
-            document.getElementById('response-text').value = '';
-            document.getElementById('result').innerHTML = '';
-            document.getElementById('loading').style.display = 'none';
-            currentText = '';
-            currentPerspectives = [];
-            showMessage('已清空', 'info');
-        }
-        
+
         // 页面加载时初始化
         window.onload = function() {
+            // 检查模型状态
             checkModelStatus();
             
-            // 设置示例文本
-            document.getElementById('original-text').value = 
-                '人工智能是未来科技发展的重要方向，机器学习算法正在改变我们的生活。';
-            document.getElementById('response-text').value = 
-                '我同意人工智能的重要性，但也认为需要平衡技术发展与伦理考虑，确保AI为人类社会带来积极影响。';
+            // 自动运行文本分类测试
+            setTimeout(() => {
+                testClassify();
+            }, 1000);
         };
     </script>
 </body>
-</html>"""
+</html>'''
     return html
 
 def generate_error_interface(error_msg: str) -> str:
     """生成错误界面"""
-    return f"""<!DOCTYPE html>
+    return f'''<!DOCTYPE html>
 <html>
-<head><title>系统错误</title></head>
-<body>
-    <h1>系统初始化失败</h1>
-    <p>错误信息: {error_msg}</p>
-    <p>请检查日志文件或联系管理员。</p>
+<head>
+    <title>系统错误</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-red-50 to-pink-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
+        <div class="text-red-500 text-6xl mb-4">⚠️</div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">系统初始化失败</h1>
+        <p class="text-gray-600 mb-6">错误信息: {error_msg}</p>
+        <p class="text-gray-500 text-sm">请检查日志文件或联系管理员。</p>
+    </div>
 </body>
-</html>"""
+</html>'''
 
-# 测试函数
-def test_enhanced_application():
-    """测试增强版应用"""
-    print("=" * 70)
-    print("辩证思考AI互动系统 - 增强版 2.0")
-    print("=" * 70)
+# 模型管理器类
+class EnhancedModelManager:
+    """增强版模型管理器"""
     
-    ensure_directories()
+    def __init__(self, cache_dir="models/cache"):
+        self.cache_dir = cache_dir
+        os.makedirs(cache_dir, exist_ok=True)
+        self.classifier = None
     
-    print("\n系统功能:")
-    print("  ✅ 集成机器学习文本分类")
-    print("  ✅ 多维度观点分析")
-    print("  ✅ 8种不同视角生成")
-    print("  ✅ 批量处理支持")
-    print("  ✅ 智能缓存机制")
-    print("  ✅ 实时性能监控")
+    async def initialize_all_models(self):
+        """初始化所有模型"""
+        try:
+            from text_domain_classifier import TextDomainClassifier
+            model_path = "models/text_domain_classifier.pkl"
+            
+            if os.path.exists(model_path):
+                self.classifier = TextDomainClassifier(model_path=model_path)
+                print(f"从 {model_path} 加载模型")
+            else:
+                self.classifier = TextDomainClassifier()
+                print("创建新模型实例")
+            
+            return True
+        except Exception as e:
+            print(f"初始化模型失败: {e}")
+            return False
     
-    print("\nAPI端点:")
-    print("  GET  /                     - 主界面")
-    print("  GET  /api/health          - 健康检查")
-    print("  POST /api/classify        - 文本分类")
-    print("  POST /api/analyze-viewpoint - 观点分析")
-    print("  POST /api/generate-perspectives - 生成视角")
-    print("  POST /api/batch-process   - 批量处理")
-    print("  GET  /api/system-metrics  - 系统指标")
+    async def classify(self, text: str, top_k: int = 5, detailed: bool = False) -> Dict[str, Any]:
+        """文本分类"""
+        if self.classifier:
+            result = self.classifier.predict(text, top_k, detailed)
+            return result.to_dict() if hasattr(result, 'to_dict') else asdict(result)
+        else:
+            raise Exception("模型未初始化")
     
-    print("\n启动服务器:")
-    print("  python main.py")
-    print("\n访问地址:")
-    print("  http://localhost:8000")
-    print("  http://localhost:8000/api/docs")
-    print("=" * 70)
+    async def analyze_viewpoint(self, original_text: str, response_text: str, 
+                              perspective_type: str, analysis_depth: str = "standard") -> Dict[str, Any]:
+        """观点分析"""
+        if self.classifier:
+            result = self.classifier.analyze_viewpoint(original_text, response_text, perspective_type, analysis_depth)
+            return result.to_dict() if hasattr(result, 'to_dict') else asdict(result)
+        else:
+            raise Exception("模型未初始化")
+    
+    async def generate_article(self, topic: str, perspective_type: str, target_length: int = 500,
+                             structure_type: str = "argumentative", include_keywords: Optional[List[str]] = None,
+                             target_audience: str = "general", writing_style: str = "standard") -> Dict[str, Any]:
+        """生成文章"""
+        if self.classifier and hasattr(self.classifier, 'generate_article'):
+            result = self.classifier.generate_article(
+                topic, perspective_type, target_length, structure_type
+            )
+            return result.to_dict() if hasattr(result, 'to_dict') else asdict(result)
+        else:
+            raise Exception("文章生成功能不可用")
 
-# 创建简化版模型管理器
 class SimpleModelManager:
-    """简化版模型管理器"""
+    """简化版模型管理器（模拟模式）"""
     
     def __init__(self, cache_dir="models/cache"):
         self.cache_dir = cache_dir
@@ -1377,12 +1420,12 @@ class SimpleModelManager:
     
     async def initialize_all_models(self):
         """初始化所有模型"""
-        await asyncio.sleep(0.1)  # 模拟初始化延迟
+        await asyncio.sleep(0.1)
         return True
     
     async def classify(self, text: str, top_k: int = 5, detailed: bool = False) -> Dict[str, Any]:
         """文本分类"""
-        await asyncio.sleep(0.05)  # 模拟处理延迟
+        await asyncio.sleep(0.05)
         
         domains = ['科技', '教育', '职场', '生活', '健康', '财经', '旅游', '政治', '娱乐', '体育']
         selected = random.sample(domains, min(top_k, len(domains)))
@@ -1406,7 +1449,7 @@ class SimpleModelManager:
     async def analyze_viewpoint(self, original_text: str, response_text: str, 
                               perspective_type: str, analysis_depth: str = "standard") -> Dict[str, Any]:
         """观点分析"""
-        await asyncio.sleep(0.1)  # 模拟处理延迟
+        await asyncio.sleep(0.1)
         
         analysis = {
             'positive': f"你对'{original_text[:20]}...'的分析很有见地，展现了良好的思考能力。",
@@ -1436,17 +1479,96 @@ class SimpleModelManager:
             })
         
         return analysis
+    
+    async def generate_article(self, topic: str, perspective_type: str, target_length: int = 500,
+                             structure_type: str = "argumentative", include_keywords: Optional[List[str]] = None,
+                             target_audience: str = "general", writing_style: str = "standard") -> Dict[str, Any]:
+        """生成文章"""
+        await asyncio.sleep(0.2)
+        
+        # 生成文章内容
+        content = f"""关于{topic}的思考
+
+近年来，{topic}问题引起了社会各界的广泛关注。从{perspective_type}的视角来看，这一议题涉及多个维度的考量。
+
+首先，从技术发展的角度分析，{topic}代表了当前社会发展的重要趋势。技术的进步为我们提供了新的解决思路和方法，但同时也带来了新的挑战和问题。这需要我们在享受技术红利的同时，认真思考如何平衡各种利益关系。
+
+其次，从社会影响的角度来看，{topic}对人们的生活方式、工作模式和社会关系都产生了深远的影响。这种影响既有积极的一面，也有需要警惕的风险。我们需要以开放的心态面对这些变化，同时保持审慎的态度。
+
+再者，从个人发展的层面来说，{topic}为个人成长和职业发展提供了新的机遇。每个人都应该积极面对这一变化，不断提升自己的适应能力和创新能力，以便在快速变化的环境中保持竞争力。
+
+总之，{topic}是一个复杂而重要的议题。我们需要保持理性的思考，积极探讨适合中国国情的发展道路，为实现可持续发展贡献力量。"""
+        
+        # 确保达到目标长度
+        while len(content) < target_length:
+            additional = f"""从更深层次来看，{topic}还涉及到价值观念、文化传统和社会制度的多个层面。我们需要在继承优秀传统文化的基础上，积极探索符合时代要求的创新路径。
+
+在未来的发展中，{topic}将继续成为社会关注的热点。我们需要建立更加完善的制度体系，为相关领域的发展提供有力保障。同时，加强国际合作与交流，学习借鉴国际先进经验，也是推动{topic}健康发展的有效途径。"""
+            content += "\n\n" + additional
+        
+        return {
+            'title': f"关于{topic}的思考与分析",
+            'content': content,
+            'main_idea': f"探讨{topic}的多方面影响和发展趋势",
+            'structure': [
+                {'section': '引言', 'content': '背景介绍', 'length': 50},
+                {'section': '分析1', 'content': '技术角度', 'length': 100},
+                {'section': '分析2', 'content': '社会角度', 'length': 100},
+                {'section': '分析3', 'content': '个人角度', 'length': 100},
+                {'section': '结论', 'content': '总结展望', 'length': 50}
+            ],
+            'keywords': [topic, '发展', '影响', '趋势', '思考'][:5],
+            'word_count': len(content),
+            'reading_time_minutes': round(len(content) / 300, 1),
+            'target_audience': target_audience,
+            'writing_style': writing_style,
+            'coherence_score': round(random.uniform(0.6, 0.9), 2),
+            'quality_score': round(random.uniform(0.6, 0.9), 2),
+            'generation_method': '模拟生成',
+            'timestamp': datetime.now().isoformat()
+        }
+
+# 测试函数
+def test_enhanced_application():
+    """测试增强版应用"""
+    print("=" * 70)
+    print("辩证思考AI互动系统 - 增强版 3.0")
+    print("=" * 70)
+    
+    ensure_directories()
+    
+    print("\n系统功能:")
+    print("  ✅ 集成机器学习文本分类")
+    print("  ✅ 多维度观点分析")
+    print("  ✅ 智能文章生成（100字以上）")
+    print("  ✅ 8种不同视角生成")
+    print("  ✅ 批量处理支持")
+    print("  ✅ 智能缓存机制")
+    print("  ✅ 实时性能监控")
+    
+    print("\nAPI端点:")
+    print("  GET  /                     - 主界面")
+    print("  GET  /api/health          - 健康检查")
+    print("  POST /api/classify        - 文本分类")
+    print("  POST /api/analyze-viewpoint - 观点分析")
+    print("  POST /api/generate-article - 文章生成")
+    print("  POST /api/generate-perspectives - 生成视角")
+    print("  POST /api/batch-process   - 批量处理")
+    print("  GET  /api/system-metrics  - 系统指标")
+    
+    print("\n启动服务器:")
+    print("  python main.py")
+    print("\n访问地址:")
+    print("  http://localhost:8000")
+    print("  http://localhost:8000/api/docs")
+    print("=" * 70)
 
 # 主程序入口
 if __name__ == "__main__":
     test_enhanced_application()
     
-    # 如果model_manager为None，使用简化版
-    if model_manager is None:
-        model_manager = SimpleModelManager()
-    
     uvicorn.run(
-        "main:app",  # 修复：使用"main:app"而不是"main_enhanced:app"
+        "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
