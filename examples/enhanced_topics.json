@@ -1,0 +1,44 @@
+[
+  {
+    "id": "example_001",
+    "title": "人工智能与就业",
+    "content": "人工智能将完全取代人类工作",
+    "description": "探讨AI对就业市场的影响和未来趋势",
+    "icon": "fas fa-robot",
+    "tags": [
+      "科技",
+      "就业",
+      "未来"
+    ],
+    "difficulty": "medium",
+    "domain": "科技"
+  },
+  {
+    "id": "example_002",
+    "title": "线上教育效果",
+    "content": "线上教育比传统教育更有效",
+    "description": "比较线上和传统教育模式的优缺点",
+    "icon": "fas fa-laptop",
+    "tags": [
+      "教育",
+      "技术",
+      "学习"
+    ],
+    "difficulty": "easy",
+    "domain": "教育"
+  },
+  {
+    "id": "example_003",
+    "title": "环保与经济发展",
+    "content": "经济发展不应以牺牲环境为代价",
+    "description": "探讨经济增长与环境保护的平衡关系",
+    "icon": "fas fa-leaf",
+    "tags": [
+      "环境",
+      "经济",
+      "发展"
+    ],
+    "difficulty": "hard",
+    "domain": "经济"
+  }
+]
