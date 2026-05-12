@@ -86,6 +86,7 @@ class GeneratedArticle:
     quality_score: float
     generation_method: str
     timestamp: Optional[str] = None
+    error: Optional[str] = None  # 添加这个可选参数
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -584,12 +585,12 @@ class TextDomainClassifier(BaseClassifier):
                 structure=paragraphs,
                 keywords=keywords,
                 word_count=word_count,
-                reading_time_minutes=round(word_count / 300, 1),  # 按300字/分钟计算
-                target_audience=self.determine_target_audience(main_domain, perspective_type),
-                writing_style=self.determine_writing_style(perspective_type, structure_type),
+                reading_time_minutes=reading_time_minutes,
+                target_audience=target_audience,
+                writing_style=writing_style,
                 coherence_score=coherence_score,
                 quality_score=quality_score,
-                generation_method="模板智能生成",
+                generation_method=generation_method,
                 timestamp=datetime.now().isoformat()
             )
             
@@ -683,6 +684,28 @@ class TextDomainClassifier(BaseClassifier):
             paragraph += " " + additional
         
         return paragraph
+    
+    def generate_background_info(self, domain: str, perspective_type: str) -> str:
+        """生成背景信息"""
+        background_templates = {
+            "科技": f"在{domain}领域，技术发展日新月异，",
+            "教育": f"在当前{domain}背景下，教育创新不断推进，",
+            "经济": f"从{domain}角度观察，经济发展呈现新态势，",
+            "社会": f"在社会{domain}发展中，各种因素相互作用，"
+        }
+        
+        perspective_background = {
+            "neutral": "需要全面客观地分析。",
+            "opposite": "可能存在不同的观点和争议。",
+            "supplement": "还有很多值得深入探讨的方面。",
+            "unique": "可以从独特的视角进行创新思考。"
+        }
+        
+        domain_info = background_templates.get(domain, f"在{domain}领域，")
+        perspective_info = perspective_background.get(perspective_type, "值得深入探讨。")
+        
+        return domain_info + perspective_info
+
     
     def generate_argument_point(self, topic: str, domain: str, perspective_type: str) -> str:
         """生成论点"""
@@ -937,7 +960,7 @@ class TextDomainClassifier(BaseClassifier):
             return 0.4
         else:
             return 0.2
-    
+
     def generate_positive_feedback(self, text: str, perspective_type: str, keywords: List[str]) -> str:
         """生成肯定反馈"""
         # 确定主要领域

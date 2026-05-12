@@ -1,23 +1,37 @@
 {
   "name": "TextDomainClassifier",
-  "version": "1.0.0",
+  "version": "3.0.0",
+  "features": [
+    "domain_classification",
+    "viewpoint_analysis",
+    "keyword_extraction",
+    "article_generation"
+  ],
   "domains": [
     "科技",
-    "生活",
     "教育",
     "职场",
-    "旅游",
+    "生活",
     "健康",
     "财经",
+    "旅游",
+    "政治",
     "娱乐",
     "体育",
-    "政治",
-    "美食",
+    "社会",
+    "文化",
+    "经济",
+    "环境",
+    "心理",
+    "哲学",
+    "历史",
+    "文学",
     "艺术",
-    "汽车",
-    "房产",
-    "游戏"
+    "科学",
+    "技术",
+    "商业",
+    "管理",
+    "法律"
   ],
-  "feature_count": 441,
-  "saved_at": "2026-05-07T16:36:21.343069"
+  "created_at": "2026-05-12T13:39:59.153103"
 }
